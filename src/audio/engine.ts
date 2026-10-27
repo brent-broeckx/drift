@@ -17,11 +17,13 @@ export interface EngineParams {
   volume: number;
 }
 
-/** Shared effects chain: bus (brightness filter) -> reverb -> master gain -> limiter -> out. */
+/** Shared effects chain: bus (brightness filter) -> reverb -> master gain -> fade gain -> limiter -> out. */
 interface Graph {
   bus: Tone.Filter;
   reverb: Tone.Reverb;
   master: Tone.Gain;
+  /** Dedicated 0..1 gain for the sleep timer, independent of the volume slider. */
+  fade: Tone.Gain;
   limiter: Tone.Limiter;
   analyser: AnalyserNode;
 }
@@ -115,6 +117,16 @@ export class AudioEngine {
   /** Native AnalyserNode tapped after the limiter, or null when stopped. */
   get analyser(): AnalyserNode | null {
     return this.graph?.analyser ?? null;
+  }
+
+  /** Final master output (after the limiter) for recording, or null when stopped. */
+  get output(): Tone.ToneAudioNode | null {
+    return this.graph?.limiter ?? null;
+  }
+
+  /** Sleep-timer fade gain (never above 1), or null when stopped. */
+  get fadeGain(): Tone.Param<'gain'> | null {
+    return this.graph?.fade.gain ?? null;
   }
 
   /** Must be called from a user gesture (click/keypress) the first time, for autoplay policy. */
@@ -226,7 +238,8 @@ export class AudioEngine {
 
   private async createGraph(): Promise<Graph> {
     const limiter = new Tone.Limiter(-1).toDestination();
-    const master = new Tone.Gain(0).connect(limiter);
+    const fade = new Tone.Gain(1).connect(limiter);
+    const master = new Tone.Gain(0).connect(fade);
     const reverb = new Tone.Reverb({
       decay: this.mood.reverb.decay,
       preDelay: 0.04,
@@ -245,7 +258,7 @@ export class AudioEngine {
     Tone.connect(limiter, analyser);
 
     await reverb.ready;
-    return { bus, reverb, master, limiter, analyser };
+    return { bus, reverb, master, fade, limiter, analyser };
   }
 
   private createVoices(mood: MoodPreset, bus: Tone.Filter): Voices {
@@ -297,6 +310,7 @@ export class AudioEngine {
     g.bus.dispose();
     g.reverb.dispose();
     g.master.dispose();
+    g.fade.dispose();
     g.limiter.dispose();
     g.analyser.disconnect();
   }

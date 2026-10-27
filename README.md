@@ -22,6 +22,33 @@ synthesized live with [Tone.js](https://tonejs.github.io/) on top of the Web Aud
   background pulse driven by an `AnalyserNode`.
 - Master limiter and fade in/out; all Tone nodes are disposed when you press Stop.
 
+## Features
+
+### Record 30 seconds to WAV
+
+Press **● Record 30s** in the Tools row to capture the master output (after the limiter) while the
+music plays; if it isn't playing yet, it starts first. A progress bar counts down the remaining
+seconds, and **Stop** ends the take early and keeps whatever was captured. Pressing the main Stop
+button while recording also saves the take.
+
+The capture uses `Tone.Recorder` (MediaRecorder), then decodes it with `decodeAudioData` and
+re-encodes it as 16-bit PCM stereo WAV (`src/audio/wav.ts`), so you always get a `.wav`, never
+webm/ogg. The file downloads automatically as `drift-<seed>-<yyyymmdd-hhmmss>.wav`. The 30-second
+limit runs on the Web Audio clock, so it stays accurate in a background tab. Browsers without
+MediaRecorder show a short inline message instead.
+
+### Sleep timer
+
+Pick **15, 30, 45, 60 or 90 min** from the Sleep menu. A countdown shows the time left, and
+**Cancel** (or choosing **Off**) turns it off. During the final 60 seconds the music fades smoothly
+to silence on a dedicated fade gain, so the Volume slider doesn't move. When the fade ends, playback
+stops and all voices are disposed, so the next Play starts at full volume. Cancelling during the
+fade ramps the volume back up over about 2 seconds.
+
+The end time is stored as a timestamp, and the remaining time is recalculated from it rather than
+counted down. The fade curve and stop time are scheduled on the Web Audio clock, so the timer stays
+accurate when the tab is in the background or throttled.
+
 ## Run
 
 Requires Node.js 18+.
@@ -64,17 +91,24 @@ src/
     engine.ts          Tone transport, instruments, effects chain, start/stop/dispose
     generator.ts       seeded RNG, scale/chord/melody logic (pure, no audio)
     moods.ts           mood presets (data only)
+    recorder.ts        Tone.Recorder capture of the master output, 30 s limit on the audio clock
+    wav.ts             AudioBuffer -> 16-bit PCM stereo WAV encoder
+    sleepTimer.ts      sleep timer: end timestamp, fade-out automation, expiry
   ui/
     controls.ts        play button, mood buttons, sliders, seed/share row
     visualizer.ts      canvas particles + analyser-driven background pulse
+    tools.ts           "Tools" row container + clock formatting
+    recorderControl.ts Record 30s button, progress bar, Stop, download
+    sleepTimerControl.ts sleep timer menu, countdown, Cancel
 ```
 
 Signal chain:
 
 ```
 pad -> pad filter (slow LFO) ┐
-lead -> feedback delay ──────┼─> brightness low-pass -> reverb -> master gain -> limiter -> speakers
-bass ────────────────────────┘                                                      └─> AnalyserNode
+lead -> feedback delay ──────┼─> brightness low-pass -> reverb -> master gain -> fade gain -> limiter -> speakers
+bass ────────────────────────┘                                     (volume)    (sleep timer)      ├─> AnalyserNode
+                                                                                                  └─> Recorder (while recording)
 ```
 
 ### How the music is generated

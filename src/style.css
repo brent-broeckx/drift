@@ -314,6 +314,120 @@ input[type='range']::-moz-range-thumb {
   gap: 0.5rem;
 }
 
+/* ---------- tools ---------- */
+
+.tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+  border-top: 1px solid var(--line);
+  padding-top: 1rem;
+}
+
+.tools-label,
+.tool-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--muted);
+}
+
+.tool {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.6rem;
+  min-height: 2.4rem;
+}
+
+.ghost.tool-btn {
+  padding: 0.45rem 0.9rem;
+  font-size: 0.82rem;
+}
+
+.ghost:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.ghost:disabled:hover {
+  background: rgb(255 255 255 / 0.04);
+}
+
+.record-btn.is-recording {
+  border-color: hsl(0 75% 62%);
+  color: hsl(0 85% 78%);
+  opacity: 1;
+}
+
+.rec-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.rec-track {
+  width: 84px;
+  height: 4px;
+  border-radius: 4px;
+  background: rgb(255 255 255 / 0.12);
+  overflow: hidden;
+}
+
+.rec-bar {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: left;
+}
+
+.rec-time,
+.sleep-left {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+
+.sleep-left.fading {
+  color: var(--muted);
+}
+
+.tool-msg {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.tool-msg:empty {
+  display: none;
+}
+
+.tool-msg.error {
+  color: hsl(0 85% 75%);
+}
+
+.tool-select {
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--fg);
+  background: rgb(255 255 255 / 0.04);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.45rem 0.9rem;
+  cursor: pointer;
+}
+
+.tool-select option {
+  background: #11152a;
+  color: var(--fg);
+}
+
+[hidden] {
+  display: none !important;
+}
+
 .toast {
   position: fixed;
   left: 50%;
@@ -364,6 +478,16 @@ input[type='range']::-moz-range-thumb {
     width: 100%;
   }
   .seed-actions .ghost {
+    flex: 1;
+  }
+  .tools {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .rec-track {
+    flex: 1;
+  }
+  .rec-progress {
     flex: 1;
   }
 }
