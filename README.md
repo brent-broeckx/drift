@@ -4,7 +4,7 @@
 
 ## Live demo
 
-`https://<username>.github.io/DRIFT/` (replace `<username>` with the GitHub account that hosts the repo)
+`https://brent-broeckx.github.io/drift/` 
 
 ## About
 
