@@ -52,7 +52,7 @@ export class Controls {
 
   constructor(root: HTMLElement, moods: MoodPreset[], h: ControlsHandlers) {
     const header = el('header', 'brand');
-    header.append(el('h1', '', 'Drift'), el('p', 'tagline', 'generative ambient · synthesized live'));
+    header.append(el('h1', '', 'DRIFT'), el('p', 'tagline', 'generative ambient · synthesized live'));
 
     const stage = el('section', 'stage');
     this.playButton = el('button', 'play');

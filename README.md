@@ -1,4 +1,12 @@
-# Drift — generative ambient music toy
+# DRIFT
+
+**Endless generative ambient music in your browser.**
+
+## Live demo
+
+`https://<username>.github.io/DRIFT/` (replace `<username>` with the GitHub account that hosts the repo)
+
+## About
 
 A static, browser-only ambient music generator. No backend and no audio files: every sound is
 synthesized live with [Tone.js](https://tonejs.github.io/) on top of the Web Audio API.
@@ -34,6 +42,16 @@ npm run preview    # serve the production build locally
 including a sub-path such as GitHub Pages.
 
 Keyboard: **Space** = play/stop, **R** = reseed.
+
+## Deployment
+
+Every push to `main` automatically builds and deploys the site to GitHub Pages via
+[`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) (it can also be run manually from
+the Actions tab). One-time setup: in the repo's **Settings → Pages**, set **Source** to
+**GitHub Actions**.
+
+The build uses a relative base path (`base: './'`) and all state lives in the URL hash
+(`#mood=...&seed=...`), so no server-side routing is needed.
 
 ## Project layout
 
