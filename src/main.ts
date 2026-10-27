@@ -8,6 +8,20 @@ import { SleepTimer } from './audio/sleepTimer';
 import { RecorderControl } from './ui/recorderControl';
 import { SleepTimerControl } from './ui/sleepTimerControl';
 import { createToolsRow } from './ui/tools';
+import {
+  LAYERS,
+  PRESETS,
+  Soundscape,
+  cloneMix,
+  defaultMix,
+  loadMix,
+  mixFromHash,
+  mixToHash,
+  presetLayers,
+  saveMix,
+  type Mix,
+} from './audio/soundscape/soundscape';
+import { SoundscapePanel } from './ui/soundscape';
 
 /* ---------------- state & URL hash ---------------- */
 
@@ -15,6 +29,8 @@ interface AppState {
   mood: MoodPreset;
   seed: string;
   params: EngineParams;
+  /** Soundscape layers plus the music/soundscape balance. */
+  mix: Mix;
 }
 
 /** Params stored in the shareable hash (volume is a personal preference, so it's left out). */
@@ -35,7 +51,8 @@ function moodDefaults(mood: MoodPreset, volume: number): EngineParams {
   };
 }
 
-function stateFromHash(hash: string, volume: number): AppState {
+/** `fallbackMix` is used when the hash doesn't specify a soundscape. */
+function stateFromHash(hash: string, volume: number, fallbackMix: () => Mix): AppState {
   const q = new URLSearchParams(hash.replace(/^#/, ''));
   const mood = getMood(q.get('mood'));
   const rawSeed = q.get('seed');
@@ -47,7 +64,7 @@ function stateFromHash(hash: string, volume: number): AppState {
     if (!Number.isFinite(v)) continue;
     params[key] = key === 'tempo' ? clamp(Math.round(v), mood.tempo.min, mood.tempo.max) : clamp(v, 0, 1);
   }
-  return { mood, seed, params };
+  return { mood, seed, params, mix: mixFromHash(q) ?? fallbackMix() };
 }
 
 function hashFromState(s: AppState): string {
@@ -55,10 +72,11 @@ function hashFromState(s: AppState): string {
   for (const key of HASH_PARAMS) {
     q.set(key, key === 'tempo' ? String(Math.round(s.params.tempo)) : s.params[key].toFixed(2));
   }
-  return `#${q.toString()}`;
+  // The soundscape part only uses URL-safe characters, so it's appended unescaped to keep commas readable.
+  return `#${q.toString()}&${mixToHash(s.mix)}`;
 }
 
-let state = stateFromHash(location.hash, DEFAULT_VOLUME);
+let state = stateFromHash(location.hash, DEFAULT_VOLUME, () => loadMix() ?? defaultMix());
 let hashTimer: ReturnType<typeof setTimeout> | undefined;
 
 function writeHash(immediate = false): void {
@@ -77,6 +95,11 @@ const visualizer = new Visualizer(
   state.mood.palette,
 );
 engine.onNote = (e) => visualizer.spawn(e);
+engine.setMusicLevel(state.mix.music);
+
+const soundscape = new Soundscape();
+soundscape.setLevel(state.mix.soundscape);
+soundscape.apply(state.mix.layers);
 
 let pending: Promise<void> | null = null;
 
@@ -89,10 +112,13 @@ async function setPlayback(play: boolean): Promise<void> {
     try {
       if (play) {
         await engine.start();
+        const input = engine.mixInput;
+        if (engine.isPlaying && input) soundscape.attach(input);
         sleepTimer.sync();
       } else {
         await recorderControl.finish();
         await engine.stop();
+        soundscape.detach();
       }
     } catch (err) {
       console.error(err);
@@ -120,6 +146,10 @@ function applyState(next: AppState): void {
   controls.setMood(state.mood);
   controls.setValues(state.params);
   controls.setSeed(state.seed);
+  engine.setMusicLevel(state.mix.music);
+  soundscape.setLevel(state.mix.soundscape);
+  soundscape.apply(state.mix.layers);
+  soundscapePanel.setMix(state.mix);
 }
 
 const controls = new Controls(document.querySelector<HTMLElement>('#app')!, MOODS, {
@@ -127,7 +157,7 @@ const controls = new Controls(document.querySelector<HTMLElement>('#app')!, MOOD
   onMood(id) {
     const mood = getMood(id);
     if (mood === state.mood) return;
-    applyState({ mood, seed: state.seed, params: moodDefaults(mood, state.params.volume) });
+    applyState({ mood, seed: state.seed, params: moodDefaults(mood, state.params.volume), mix: state.mix });
     writeHash(true);
   },
   onParam(key, value) {
@@ -152,6 +182,56 @@ const controls = new Controls(document.querySelector<HTMLElement>('#app')!, MOOD
   },
 });
 
+/** Persist and share the current mix after any soundscape change. */
+function mixChanged(): void {
+  soundscapePanel.renderSummary(state.mix);
+  saveMix(state.mix);
+  writeHash();
+}
+
+function hintIfStopped(): void {
+  if (!engine.isPlaying && !pending) controls.flash('Press play to listen');
+}
+
+const panel = document.querySelector<HTMLElement>('.panel')!;
+const soundscapePanel = new SoundscapePanel(panel, panel.querySelector('.seed-row'), LAYERS, PRESETS, {
+  onToggle(id, on) {
+    state.mix.layers[id].on = on;
+    soundscape.setLayer(id, { on });
+    mixChanged();
+    if (on) hintIfStopped();
+  },
+  onLevel(id, level) {
+    state.mix.layers[id].level = level;
+    soundscape.setLayer(id, { level });
+    mixChanged();
+  },
+  onParam(id, param) {
+    state.mix.layers[id].param = param;
+    soundscape.setLayer(id, { param });
+    mixChanged();
+  },
+  onSoundscapeLevel(level) {
+    state.mix.soundscape = level;
+    soundscape.setLevel(level);
+    mixChanged();
+  },
+  onMusicLevel(level) {
+    state.mix.music = level;
+    engine.setMusicLevel(level);
+    mixChanged();
+  },
+  onPreset(id) {
+    const preset = PRESETS.find((p) => p.id === id);
+    if (!preset) return;
+    state.mix.layers = presetLayers(preset, state.mix.layers);
+    soundscape.apply(state.mix.layers);
+    soundscapePanel.setMix(state.mix);
+    mixChanged();
+    hintIfStopped();
+  },
+});
+
 const tools = createToolsRow(document.querySelector<HTMLElement>('.panel')!);
 const recorderControl = new RecorderControl(tools, {
   async ensurePlaying() {
@@ -168,12 +248,15 @@ const sleepTimer = new SleepTimer({
 new SleepTimerControl(tools, sleepTimer);
 
 applyState(state);
+saveMix(state.mix);
 writeHash(true);
 
 // Pasting a shared link into an open tab.
 window.addEventListener('hashchange', () => {
   if (location.hash === hashFromState(state)) return;
-  applyState(stateFromHash(location.hash, state.params.volume));
+  const next = stateFromHash(location.hash, state.params.volume, () => cloneMix(state.mix));
+  applyState(next);
+  saveMix(next.mix);
 });
 
 window.addEventListener('keydown', (e) => {

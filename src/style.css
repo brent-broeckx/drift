@@ -451,11 +451,219 @@ input[type='range']::-moz-range-thumb {
   transform: translate(-50%, 0);
 }
 
+/* ---------- soundscape ---------- */
+
+.soundscape {
+  border-top: 1px solid var(--line);
+  padding-top: 0.6rem;
+}
+
+.sc-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.4rem 0;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  cursor: pointer;
+  text-align: left;
+}
+
+.sc-summary {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.soundscape.active .sc-summary {
+  color: var(--accent);
+}
+
+.sc-chevron svg,
+.sc-gear svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.sc-chevron {
+  color: var(--muted);
+  transition: transform 0.25s ease;
+}
+
+.soundscape.open .sc-chevron {
+  transform: rotate(180deg);
+}
+
+.sc-body {
+  display: grid;
+  gap: 1rem;
+  padding-top: 0.6rem;
+}
+
+.sc-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.ghost.sc-preset {
+  padding: 0.45rem 0.9rem;
+  font-size: 0.82rem;
+}
+
+.sc-preset.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: #fff;
+}
+
+.sc-balance {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem 1.5rem;
+}
+
+.sc-layers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem 1.5rem;
+}
+
+.sc-row {
+  display: grid;
+  grid-template-columns: 22px 5.2rem auto minmax(0, 1fr) 32px;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 2.5rem;
+}
+
+.sc-icon {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--muted);
+  transition: color 0.2s ease;
+}
+
+.sc-name {
+  font-size: 0.85rem;
+  color: var(--muted);
+  transition: color 0.2s ease;
+}
+
+.sc-layer.on .sc-icon {
+  color: var(--accent);
+}
+
+.sc-layer.on .sc-name {
+  color: var(--fg);
+}
+
+.sc-switch {
+  position: relative;
+  width: 34px;
+  height: 20px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgb(255 255 255 / 0.1);
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.sc-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.7);
+  transition: transform 0.2s ease;
+}
+
+.sc-switch[aria-checked='true'] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.sc-switch[aria-checked='true']::after {
+  transform: translateX(14px);
+  background: #fff;
+}
+
+.sc-layer:not(.on) .sc-level {
+  opacity: 0.5;
+}
+
+.sc-gear {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.sc-gear:hover,
+.sc-gear.active {
+  color: var(--fg);
+  border-color: var(--line);
+  background: rgb(255 255 255 / 0.05);
+}
+
+.sc-extra {
+  display: grid;
+  grid-template-columns: 5.2rem minmax(0, 1fr) 2.6rem;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0 32px 0.4rem calc(22px + 0.6rem);
+  font-size: 0.78rem;
+}
+
+.sc-extra label {
+  color: var(--muted);
+}
+
+.sc-extra output {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
 /* ---------- responsive ---------- */
 
 @media (max-width: 720px) {
   .sliders {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .sc-layers {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -489,6 +697,19 @@ input[type='range']::-moz-range-thumb {
   }
   .rec-progress {
     flex: 1;
+  }
+  .sc-balance {
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+  }
+  .sc-row {
+    grid-template-columns: 22px 4.4rem auto minmax(0, 1fr) 32px;
+    gap: 0.5rem;
+  }
+  .sc-extra {
+    grid-template-columns: 4.4rem minmax(0, 1fr) 2.6rem;
+    gap: 0.5rem;
+    padding-left: calc(22px + 0.5rem);
   }
 }
 

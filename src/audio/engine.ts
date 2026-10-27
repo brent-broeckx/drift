@@ -17,8 +17,13 @@ export interface EngineParams {
   volume: number;
 }
 
-/** Shared effects chain: bus (brightness filter) -> reverb -> master gain -> fade gain -> limiter -> out. */
+/**
+ * Shared effects chain: music gain -> bus (brightness filter) -> reverb -> master gain -> fade gain -> limiter -> out.
+ * The soundscape joins at the master gain, so volume, sleep fade, limiter and recorder apply to it too.
+ */
 interface Graph {
+  /** Music-only level, so the soundscape can be balanced against (or replace) the music. */
+  music: Tone.Gain;
   bus: Tone.Filter;
   reverb: Tone.Reverb;
   master: Tone.Gain;
@@ -44,6 +49,7 @@ const FADE_OUT = 0.6;
 export const brightnessToHz = (b: number) => 220 * Math.pow(60, b); // 220 Hz .. 13.2 kHz
 /** Perceptual curve plus make-up gain; the limiter catches any peaks. */
 const volumeToGain = (v: number) => v * v * 4;
+const musicToGain = (v: number) => v * v;
 const reverbToWet = (r: number) => r * 0.95;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -103,6 +109,7 @@ export class AudioEngine {
   private loopId: number | null = null;
   private runId = 0;
   private stopping: Promise<void> | null = null;
+  private musicLevel = 1;
 
   constructor(
     private mood: MoodPreset,
@@ -122,6 +129,14 @@ export class AudioEngine {
   /** Final master output (after the limiter) for recording, or null when stopped. */
   get output(): Tone.ToneAudioNode | null {
     return this.graph?.limiter ?? null;
+  }
+
+  /**
+   * Where the soundscape joins the master chain, or null when stopped: after the music's brightness
+   * filter and reverb (which would muffle and smear it), before volume, sleep fade, limiter and recorder.
+   */
+  get mixInput(): Tone.InputNode | null {
+    return this.graph?.master ?? null;
   }
 
   /** Sleep-timer fade gain (never above 1), or null when stopped. */
@@ -144,7 +159,7 @@ export class AudioEngine {
     }
 
     this.graph = graph;
-    this.voices = this.createVoices(this.mood, graph.bus);
+    this.voices = this.createVoices(this.mood, graph.music);
     this.generator = new Generator(this.mood, this.seed);
 
     const transport = Tone.getTransport();
@@ -201,6 +216,12 @@ export class AudioEngine {
     if (p.volume !== undefined) g.master.gain.rampTo(volumeToGain(p.volume), 0.1);
   }
 
+  /** 0..1 music-only level (the soundscape and master volume are unaffected). */
+  setMusicLevel(level: number): void {
+    this.musicLevel = level;
+    this.graph?.music.gain.rampTo(musicToGain(level), 0.3);
+  }
+
   /** Switch mood and/or seed. While playing, the music restarts its sequence from the new seed. */
   configure(mood: MoodPreset, seed: string): void {
     const moodChanged = mood !== this.mood;
@@ -212,7 +233,7 @@ export class AudioEngine {
     if (moodChanged) {
       g.reverb.decay = mood.reverb.decay;
       this.retire(this.voices);
-      this.voices = this.createVoices(mood, g.bus);
+      this.voices = this.createVoices(mood, g.music);
     } else {
       this.voices.pad.releaseAll();
       this.voices.bass.triggerRelease();
@@ -223,7 +244,8 @@ export class AudioEngine {
   private tick(time: number): void {
     const v = this.voices;
     const gen = this.generator;
-    if (!v || !gen) return;
+    // Muted music generates nothing, so a soundscape-only mix costs no synth voices.
+    if (!v || !gen || this.musicLevel <= 0) return;
 
     const stepSec = Tone.Time('8n').toSeconds();
     for (const e of gen.next(this.params)) {
@@ -251,6 +273,7 @@ export class AudioEngine {
       rolloff: -12,
       Q: 0.3,
     }).connect(reverb);
+    const music = new Tone.Gain(musicToGain(this.musicLevel)).connect(bus);
 
     const analyser = Tone.getContext().createAnalyser();
     analyser.fftSize = 1024;
@@ -258,10 +281,10 @@ export class AudioEngine {
     Tone.connect(limiter, analyser);
 
     await reverb.ready;
-    return { bus, reverb, master, fade, limiter, analyser };
+    return { music, bus, reverb, master, fade, limiter, analyser };
   }
 
-  private createVoices(mood: MoodPreset, bus: Tone.Filter): Voices {
+  private createVoices(mood: MoodPreset, bus: Tone.InputNode): Voices {
     const t = mood.timbre;
 
     const padFilter = new Tone.Filter({ type: 'lowpass', frequency: 1200, Q: 0.6, rolloff: -24 }).connect(bus);
@@ -307,6 +330,7 @@ export class AudioEngine {
   }
 
   private disposeGraph(g: Graph): void {
+    g.music.dispose();
     g.bus.dispose();
     g.reverb.dispose();
     g.master.dispose();
